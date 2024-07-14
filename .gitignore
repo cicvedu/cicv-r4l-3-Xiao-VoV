@@ -1,3 +1,10 @@
 busybox-1.36.1/_install
 linux/build
 .vscode/
+/busybox-1.36.1
+/r4l_experiment
+/linux/samples/rust/e1000
+linux/scripts/clang-tools/compile_commands.json
+src_e1000/dump.dat
+src_e1000/r4l_e1000_demo.d
+src_e1000/dump.dat

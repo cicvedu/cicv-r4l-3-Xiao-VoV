@@ -8,7 +8,7 @@ use kernel::prelude::*;
 use kernel::sync::Mutex;
 use kernel::{chrdev, file};
 
-const GLOBALMEM_SIZE: usize = 0x1000;
+const GLOBALMEM_SIZE: usize = 0x50;
 
 module! {
     type: RustChrdev,
@@ -18,13 +18,11 @@ module! {
     license: "GPL",
 }
 
-static GLOBALMEM_BUF: Mutex<[u8;GLOBALMEM_SIZE]> = unsafe {
-    Mutex::new([0u8;GLOBALMEM_SIZE])
-};
+static GLOBALMEM_BUF: Mutex<[u8; GLOBALMEM_SIZE]> = unsafe { Mutex::new([0u8; GLOBALMEM_SIZE]) };
 
 struct RustFile {
     #[allow(dead_code)]
-    inner: &'static Mutex<[u8;GLOBALMEM_SIZE]>,
+    inner: &'static Mutex<[u8; GLOBALMEM_SIZE]>,
 }
 
 #[vtable]
@@ -32,19 +30,36 @@ impl file::Operations for RustFile {
     type Data = Box<Self>;
 
     fn open(_shared: &(), _file: &file::File) -> Result<Box<Self>> {
-        Ok(
-            Box::try_new(RustFile {
-                inner: &GLOBALMEM_BUF
-            })?
-        )
+        Ok(Box::try_new(RustFile {
+            inner: &GLOBALMEM_BUF,
+        })?)
     }
 
-    fn write(_this: &Self,_file: &file::File,_reader: &mut impl kernel::io_buffer::IoBufferReader,_offset:u64,) -> Result<usize> {
-        Err(EPERM)
+    fn write(
+        this: &Self,
+        _file: &file::File,
+        reader: &mut impl kernel::io_buffer::IoBufferReader,
+        offset: u64,
+    ) -> Result<usize> {
+        // Err(EPERM)
+        let offset = offset.try_into()?;
+        let mut vec = this.inner.lock();
+        let len = core::cmp::min(reader.len(), vec.len().saturating_sub(offset));
+        reader.read_slice(&mut vec[offset..][..len])?;
+        Ok(len)
     }
 
-    fn read(_this: &Self,_file: &file::File,_writer: &mut impl kernel::io_buffer::IoBufferWriter,_offset:u64,) -> Result<usize> {
-        Err(EPERM)
+    fn read(
+        this: &Self,
+        _file: &file::File,
+        writer: &mut impl kernel::io_buffer::IoBufferWriter,
+        offset: u64,
+    ) -> Result<usize> {
+        let offset = offset.try_into()?;
+        let vec = this.inner.lock();
+        let len = core::cmp::min(writer.len(), vec.len().saturating_sub(offset));
+        writer.write_slice(&vec[offset..][..len])?;
+        Ok(len)
     }
 }
 
